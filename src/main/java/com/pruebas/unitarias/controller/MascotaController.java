@@ -17,7 +17,7 @@ import com.pruebas.unitarias.model.Mascota;
 import com.pruebas.unitarias.service.MascotaService;
 
 @RestController
-@RequestMapping("/api/mascotas")
+@RequestMapping("/api/v1/mascotas")
 public class MascotaController {
 
     @Autowired
