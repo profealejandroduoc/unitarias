@@ -14,6 +14,7 @@ public class MascotaService {
     @Autowired
     private MascotaRepository mascotaRepository;
 
+    @SuppressWarnings("null")
     public Mascota guardarMascota(Mascota mascota) {
         return mascotaRepository.save(mascota);
     }
@@ -22,10 +23,12 @@ public class MascotaService {
         return mascotaRepository.findAll();
     }
 
+    @SuppressWarnings("null")
     public Optional<Mascota> obtenerMascotaPorId(Long id) {
         return mascotaRepository.findById(id);
     }
 
+    @SuppressWarnings("null")
     public Mascota actualizarMascota(Long id, Mascota mascota) {
         Mascota existente = mascotaRepository.findById(id).orElseThrow(() -> new RuntimeException("No existe la mascota"));
         existente.setNombre(mascota.getNombre());
@@ -34,6 +37,7 @@ public class MascotaService {
         return mascotaRepository.save(existente);
     }
 
+    @SuppressWarnings("null")
     public void eliminarMascota(Long id) {
         mascotaRepository.deleteById(id);
     }
