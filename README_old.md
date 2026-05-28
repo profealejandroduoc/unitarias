@@ -38,7 +38,7 @@ Tu aplicación necesita saber a qué base de datos conectarse para guardar los d
 * Abre el archivo `src/main/resources/application.properties` y agrega:
 
 ```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/mascotas_db
+spring.datasource.url=jdbc:mysql://localhost:3306/mascotas_db?useSSL=false&serverTimezone=UTC
 spring.datasource.username=root
 spring.datasource.password=
 spring.jpa.hibernate.ddl-auto=update
@@ -511,7 +511,7 @@ Swagger permite documentar y probar tus endpoints desde el navegador de forma in
 
 * Corre tu aplicación y abre:
 
-  [http://localhost:8080/doc/swagger-ui.html](http://localhost:8080/doc/swagger-ui.html)
+  [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
 
 * Verás la documentación de tu API y podrás probar cada endpoint.
 
