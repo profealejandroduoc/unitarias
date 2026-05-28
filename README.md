@@ -4,7 +4,7 @@
 
 Este tutorial tiene como objetivo construir una API REST sencilla para gestionar mascotas utilizando **Spring Boot**, **Spring Data JPA**, **MySQL**, **Lombok**, **JUnit 5**, **Mockito**, **MockMvc** y **H2** para pruebas.
 
-Al finalizar, el estudiante será capaz de:
+Al finalizar, deberías ser capaz de:
 
 * Crear una API REST con arquitectura en capas.
 * Implementar una entidad, repositorio, servicio y controlador.
@@ -12,7 +12,10 @@ Al finalizar, el estudiante será capaz de:
 * Crear pruebas unitarias para la capa de servicio.
 * Crear pruebas del controlador usando `@WebMvcTest` y `MockMvc`.
 * Crear pruebas de integración usando `@SpringBootTest`, `MockMvc` y H2.
+* Ejecutar una prueba opcional contra la base de datos real MySQL.
 * Documentar la API con Swagger.
+
+[Antes de seguir, revisa el siguiente video](content/explicaunitarias.mp4)
 
 ---
 
@@ -20,11 +23,12 @@ Al finalizar, el estudiante será capaz de:
 
 Antes de comenzar, es importante diferenciar los tipos de pruebas que se usarán en el proyecto.
 
-| Tipo de prueba              | Qué se prueba                                                                         | Herramientas principales           | Usa base de datos real |
-| --------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------- |
-| Prueba unitaria de servicio | La lógica de negocio del servicio de forma aislada                                    | JUnit 5 + Mockito                  | No                     |
-| Prueba del controlador      | Los endpoints, códigos HTTP y respuestas JSON                                         | `@WebMvcTest` + `MockMvc`          | No                     |
-| Prueba de integración       | El flujo completo entre controlador, servicio, repositorio y base de datos en memoria | `@SpringBootTest` + `MockMvc` + H2 | No, usa H2             |
+| Tipo de prueba                    | Qué se prueba                                                                         | Herramientas principales           | Usa base de datos real |
+| --------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------- |
+| Prueba unitaria de servicio       | La lógica de negocio del servicio de forma aislada                                    | JUnit 5 + Mockito                  | No                     |
+| Prueba del controlador            | Los endpoints, códigos HTTP y respuestas JSON                                         | `@WebMvcTest` + `MockMvc`          | No                     |
+| Prueba de integración con H2      | El flujo completo entre controlador, servicio, repositorio y base de datos en memoria | `@SpringBootTest` + `MockMvc` + H2 | No, usa H2             |
+| Prueba opcional con MySQL real    | El flujo CRUD completo usando la base `mascotas_db`                                   | `@SpringBootTest` + perfil Maven   | Sí                     |
 
 ### ¿Por qué es importante esta diferencia?
 
@@ -35,6 +39,8 @@ Una **prueba unitaria** debe enfocarse en una parte pequeña del sistema, por ej
 Una **prueba del controlador** verifica que los endpoints respondan correctamente, sin levantar toda la aplicación.
 
 Una **prueba de integración** verifica que varias capas funcionen juntas, pero usando una base de datos en memoria para no depender de MySQL durante la ejecución de los tests.
+
+La **prueba con MySQL real** se ejecuta de forma separada. Sirve para comprobar que la configuración real de la aplicación funciona contra `mascotas_db`, pero no se incluye en `mvn test` para que las pruebas normales no dependan de MySQL.
 
 ---
 
@@ -53,7 +59,7 @@ Spring Initializr permite generar proyectos Spring Boot fácilmente, incorporand
 | ----------- | ------------------------ |
 | Project     | Maven                    |
 | Language    | Java                     |
-| Spring Boot | 3.3.x o superior estable |
+| Spring Boot | 3.5.0                    |
 | Group       | `com.pruebas`            |
 | Artifact    | `unitarias`              |
 | Name        | `unitarias`              |
@@ -123,6 +129,47 @@ El archivo `pom.xml` debe incluir las siguientes dependencias principales:
 
 > Nota: Si usas una versión más reciente de Spring Boot, verifica que la versión de Springdoc sea compatible.
 
+Para que `mvn test` ejecute también las clases terminadas en `*IT.java`, y para dejar fuera las pruebas contra MySQL real en la ejecución normal, el proyecto usa Maven Surefire con esta configuración:
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-surefire-plugin</artifactId>
+    <configuration>
+        <includes>
+            <include>**/*Test.java</include>
+            <include>**/*Tests.java</include>
+            <include>**/*IT.java</include>
+        </includes>
+        <excludedGroups>real-db</excludedGroups>
+    </configuration>
+</plugin>
+```
+
+El perfil `real-db-tests` cambia esa configuración para ejecutar solamente la prueba marcada con `@Tag("real-db")`:
+
+```xml
+<profiles>
+    <profile>
+        <id>real-db-tests</id>
+        <build>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration combine.self="override">
+                        <includes>
+                            <include>**/*RealDbIT.java</include>
+                        </includes>
+                        <groups>real-db</groups>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </build>
+    </profile>
+</profiles>
+```
+
 ---
 
 ## 5. Configuración de la base de datos principal
@@ -190,14 +237,16 @@ src/test/resources/application-test.properties
 Agrega el siguiente contenido:
 
 ```properties
-spring.datasource.url=jdbc:h2:mem:mascotas_test
-spring.datasource.driverClassName=org.h2.Driver
+spring.datasource.url=jdbc:h2:mem:testdb
+spring.datasource.driver-class-name=org.h2.Driver
 spring.datasource.username=sa
 spring.datasource.password=
 
 spring.jpa.hibernate.ddl-auto=create-drop
 spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect
+logging.level.org.hibernate.SQL=DEBUG
+logging.level.org.hibernate.type.descriptor.sql=TRACE
 ```
 
 Este archivo será usado solamente cuando una prueba tenga activo el perfil `test`.
@@ -381,7 +430,7 @@ import com.pruebas.unitarias.model.Mascota;
 import com.pruebas.unitarias.service.MascotaService;
 
 @RestController
-@RequestMapping("/api/mascotas")
+@RequestMapping("/api/v1/mascotas")
 public class MascotaController {
 
     @Autowired
@@ -422,19 +471,19 @@ public class MascotaController {
 }
 ```
 
-> En este tutorial se usará la ruta base `/api/mascotas` para mantener el ejemplo simple y coherente con las pruebas.
+> En este tutorial se usará la ruta base `/api/v1/mascotas` para mantener el ejemplo simple y coherente con las pruebas.
 
 ---
 
 ## 11. Endpoints disponibles
 
-| Método HTTP | Ruta                 | Descripción                     |
-| ----------- | -------------------- | ------------------------------- |
-| POST        | `/api/mascotas`      | Crea una nueva mascota          |
-| GET         | `/api/mascotas`      | Lista todas las mascotas        |
-| GET         | `/api/mascotas/{id}` | Busca una mascota por ID        |
-| PUT         | `/api/mascotas/{id}` | Actualiza una mascota existente |
-| DELETE      | `/api/mascotas/{id}` | Elimina una mascota por ID      |
+| Método HTTP | Ruta                     | Descripción                     |
+| ----------- | ------------------------ | ------------------------------- |
+| POST        | `/api/v1/mascotas`       | Crea una nueva mascota          |
+| GET         | `/api/v1/mascotas`       | Lista todas las mascotas        |
+| GET         | `/api/v1/mascotas/{id}`  | Busca una mascota por ID        |
+| PUT         | `/api/v1/mascotas/{id}`  | Actualiza una mascota existente |
+| DELETE      | `/api/v1/mascotas/{id}`  | Elimina una mascota por ID      |
 
 ---
 
@@ -445,6 +494,8 @@ public class MascotaController {
 Las pruebas unitarias del servicio permiten verificar la lógica de negocio sin conectarse a la base de datos.
 
 Para lograrlo, se simula el repositorio usando Mockito.
+
+[Revisa este enlace para más explicación](content/TDD_y_Spring_Boot_REST_APIs.mp4)
 
 Crea el archivo:
 
@@ -476,7 +527,7 @@ import org.mockito.MockitoAnnotations;
 import com.pruebas.unitarias.model.Mascota;
 import com.pruebas.unitarias.repository.MascotaRepository;
 
-class MascotaServiceTest {
+public class MascotaServiceTest
 
     @Mock
     private MascotaRepository mascotaRepository;
@@ -609,6 +660,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Arrays;
@@ -626,11 +678,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MascotaController.class)
-class MascotaControllerTest {
+@ActiveProfiles("test")
+public class MascotaControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
+    @SuppressWarnings("removal")
     @MockBean
     private MascotaService mascotaService;
 
@@ -644,7 +698,7 @@ class MascotaControllerTest {
 
         Mockito.when(mascotaService.listarMascotas()).thenReturn(Arrays.asList(m1, m2));
 
-        mockMvc.perform(get("/api/mascotas"))
+        mockMvc.perform(get("/api/v1/mascotas"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].nombre", is("Toby")))
@@ -658,7 +712,7 @@ class MascotaControllerTest {
 
         Mockito.when(mascotaService.guardarMascota(any(Mascota.class))).thenReturn(guardada);
 
-        mockMvc.perform(post("/api/mascotas")
+        mockMvc.perform(post("/api/v1/mascotas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(nueva)))
                 .andExpect(status().isOk())
@@ -674,7 +728,7 @@ class MascotaControllerTest {
 
         Mockito.when(mascotaService.obtenerMascotaPorId(2L)).thenReturn(Optional.of(buscada));
 
-        mockMvc.perform(get("/api/mascotas/2"))
+        mockMvc.perform(get("/api/v1/mascotas/2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(2L))
                 .andExpect(jsonPath("$.nombre").value("Michi"));
@@ -684,7 +738,7 @@ class MascotaControllerTest {
     void testObtenerMascotaPorIdNoExistente() throws Exception {
         Mockito.when(mascotaService.obtenerMascotaPorId(99L)).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/mascotas/99"))
+        mockMvc.perform(get("/api/v1/mascotas/99"))
                 .andExpect(status().isNotFound());
     }
 
@@ -695,7 +749,7 @@ class MascotaControllerTest {
         Mockito.when(mascotaService.actualizarMascota(eq(1L), any(Mascota.class)))
                 .thenReturn(actualizada);
 
-        mockMvc.perform(put("/api/mascotas/1")
+        mockMvc.perform(put("/api/v1/mascotas/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(actualizada)))
                 .andExpect(status().isOk())
@@ -712,7 +766,7 @@ class MascotaControllerTest {
         Mockito.when(mascotaService.actualizarMascota(eq(99L), any(Mascota.class)))
                 .thenThrow(new RuntimeException("No existe la mascota"));
 
-        mockMvc.perform(put("/api/mascotas/99")
+        mockMvc.perform(put("/api/v1/mascotas/99")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(mascota)))
                 .andExpect(status().isNotFound());
@@ -722,7 +776,7 @@ class MascotaControllerTest {
     void testEliminarMascota() throws Exception {
         Mockito.doNothing().when(mascotaService).eliminarMascota(1L);
 
-        mockMvc.perform(delete("/api/mascotas/1"))
+        mockMvc.perform(delete("/api/v1/mascotas/1"))
                 .andExpect(status().isNoContent());
     }
 }
@@ -798,14 +852,14 @@ class MascotaControllerIT {
     void testCrearYObtenerMascota() throws Exception {
         Mascota mascota = new Mascota(null, "Max", "Perro", 4);
 
-        mockMvc.perform(post("/api/mascotas")
+        mockMvc.perform(post("/api/v1/mascotas")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(mascota)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.nombre").value("Max"));
 
-        mockMvc.perform(get("/api/mascotas"))
+        mockMvc.perform(get("/api/v1/mascotas"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].nombre").value("Max"))
                 .andExpect(jsonPath("$[0].tipo").value("Perro"))
@@ -817,10 +871,10 @@ class MascotaControllerIT {
         Mascota mascota = new Mascota(null, "Firulais", "Perro", 3);
         Mascota guardada = mascotaRepository.save(mascota);
 
-        mockMvc.perform(delete("/api/mascotas/" + guardada.getId()))
+        mockMvc.perform(delete("/api/v1/mascotas/" + guardada.getId()))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/mascotas/" + guardada.getId()))
+        mockMvc.perform(get("/api/v1/mascotas/" + guardada.getId()))
                 .andExpect(status().isNotFound());
     }
 
@@ -831,7 +885,7 @@ class MascotaControllerIT {
 
         Mascota actualizada = new Mascota(null, "Rocky", "Perro", 5);
 
-        mockMvc.perform(put("/api/mascotas/" + guardada.getId())
+        mockMvc.perform(put("/api/v1/mascotas/" + guardada.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(actualizada)))
                 .andExpect(status().isOk())
@@ -844,11 +898,21 @@ class MascotaControllerIT {
 
 ## 15. Ejecutar las pruebas
 
-Para ejecutar todas las pruebas desde la terminal:
+Para ejecutar las pruebas unitarias, las pruebas del controlador y las pruebas de integración con H2 desde la terminal:
+
+```powershell
+.\mvnw.cmd test
+```
+
+En macOS o Linux:
 
 ```bash
-mvn test
+./mvnw test
 ```
+
+Si tienes Maven instalado globalmente, también puedes usar `mvn test`.
+
+El proyecto configura Maven Surefire para incluir también las clases terminadas en `*IT.java`. Las pruebas marcadas con `@Tag("real-db")` quedan fuera de esta ejecución normal.
 
 Si todo está correcto, Maven debería mostrar un resultado similar a:
 
@@ -873,7 +937,7 @@ POST
 URL:
 
 ```text
-http://localhost:8080/api/mascotas
+http://localhost:8080/api/v1/mascotas
 ```
 
 Body en formato JSON:
@@ -897,7 +961,7 @@ GET
 URL:
 
 ```text
-http://localhost:8080/api/mascotas
+http://localhost:8080/api/v1/mascotas
 ```
 
 ### Buscar mascota por ID
@@ -911,7 +975,7 @@ GET
 URL:
 
 ```text
-http://localhost:8080/api/mascotas/1
+http://localhost:8080/api/v1/mascotas/1
 ```
 
 ### Actualizar mascota
@@ -925,7 +989,7 @@ PUT
 URL:
 
 ```text
-http://localhost:8080/api/mascotas/1
+http://localhost:8080/api/v1/mascotas/1
 ```
 
 Body en formato JSON:
@@ -949,7 +1013,7 @@ DELETE
 URL:
 
 ```text
-http://localhost:8080/api/mascotas/1
+http://localhost:8080/api/v1/mascotas/1
 ```
 
 ---
@@ -979,21 +1043,21 @@ Revisa que la ruta usada en el controlador sea la misma que la ruta usada en las
 En este tutorial se usa:
 
 ```java
-@RequestMapping("/api/mascotas")
+@RequestMapping("/api/v1/mascotas")
 ```
 
 Por lo tanto, las pruebas deben usar rutas como:
 
 ```java
-get("/api/mascotas")
-post("/api/mascotas")
-put("/api/mascotas/1")
-delete("/api/mascotas/1")
+get("/api/v1/mascotas")
+post("/api/v1/mascotas")
+put("/api/v1/mascotas/1")
+delete("/api/v1/mascotas/1")
 ```
 
 ### Error de conexión a MySQL al ejecutar pruebas
 
-Las pruebas de integración deben usar H2, no MySQL.
+Las pruebas normales de integración deben usar H2, no MySQL. Las pruebas contra MySQL real se ejecutan aparte con el perfil Maven `real-db-tests`.
 
 Verifica que exista el archivo:
 
@@ -1027,11 +1091,12 @@ http://localhost:8080/doc/swagger-ui.html
 
 Con este proyecto se construyó una API REST sencilla usando Spring Boot y arquitectura en capas.
 
-Además, se implementaron tres niveles de prueba:
+Además, se implementaron distintos niveles de prueba:
 
 * pruebas unitarias del servicio;
 * pruebas del controlador;
-* pruebas de integración con H2.
+* pruebas de integración con H2;
+* prueba opcional contra MySQL real.
 
 Este enfoque permite comprender que probar software no consiste solo en comprobar que la aplicación funciona manualmente, sino en automatizar verificaciones que aseguren el correcto comportamiento del sistema.
 
@@ -1048,3 +1113,102 @@ Por ejemplo:
 * `edad` no puede ser negativa.
 
 Luego agrega pruebas para verificar que las validaciones se cumplan correctamente.
+
+---
+
+## 21. Pruebas contra la base de datos real MySQL
+
+Cuando la base de datos `mascotas_db` exista en MySQL, se puede ejecutar una prueba de integración contra la base real.
+
+El proyecto incluye el archivo:
+
+```text
+src/test/resources/application-realdbtest.properties
+```
+
+Con esta configuración:
+
+```properties
+spring.datasource.url=${REAL_DB_URL:jdbc:mysql://localhost:3306/mascotas_db?useSSL=false&serverTimezone=UTC}
+spring.datasource.username=${REAL_DB_USERNAME:root}
+spring.datasource.password=${REAL_DB_PASSWORD:}
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+```
+
+La prueba real usa:
+
+```java
+@Tag("real-db")
+@ActiveProfiles("realdbtest")
+```
+
+Para ejecutarla en Windows:
+
+```powershell
+.\mvnw.cmd -P real-db-tests test
+```
+
+En macOS o Linux:
+
+```bash
+./mvnw -P real-db-tests test
+```
+
+La clase `MascotaControllerRealDbIT` crea, consulta, actualiza y elimina una mascota usando MySQL. No usa `deleteAll()`: solo elimina los registros que crea la propia prueba.
+
+Si tu MySQL usa otro usuario, clave o URL, puedes definir variables de entorno antes de ejecutar:
+
+```powershell
+$env:REAL_DB_URL="jdbc:mysql://localhost:3306/mascotas_db?useSSL=false&serverTimezone=UTC"
+$env:REAL_DB_USERNAME="root"
+$env:REAL_DB_PASSWORD="tu_clave"
+.\mvnw.cmd -P real-db-tests test
+```
+
+---
+
+## 22. Pruebas sin base de datos real usando H2
+
+Para probar el proyecto sin depender de MySQL, usa el perfil `test` y la base en memoria H2.
+
+El archivo usado es:
+
+```text
+src/test/resources/application-test.properties
+```
+
+Las pruebas que levantan Spring tienen:
+
+```java
+@ActiveProfiles("test")
+```
+
+Por eso toman esta configuración:
+
+```properties
+spring.datasource.url=jdbc:h2:mem:testdb
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+
+spring.jpa.hibernate.ddl-auto=create-drop
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect
+```
+
+Para ejecutar estas pruebas sin tener MySQL iniciado en Windows:
+
+```powershell
+.\mvnw.cmd test
+```
+
+En macOS o Linux:
+
+```bash
+./mvnw test
+```
+
+Esta ejecución corre las pruebas unitarias, las pruebas web con `MockMvc` y las pruebas de integración H2. Las pruebas marcadas con `@Tag("real-db")` no se ejecutan en este comando.

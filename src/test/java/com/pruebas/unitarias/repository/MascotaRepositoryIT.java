@@ -1,21 +1,20 @@
 package com.pruebas.unitarias.repository;
 
-import com.pruebas.unitarias.model.Mascota;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.boot.autoconfigure.domain.EntityScan;
-//import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-//import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.boot.test.context.SpringBootTest;
-
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+import com.pruebas.unitarias.model.Mascota;
 
 //@DataJpaTest  // Levanta solo la capa JPA y una base en memoria
 //@EntityScan(basePackages = "com.pruebas.unitarias.model")
 //@EnableJpaRepositories(basePackages = "com.pruebas.unitarias.repository")
 @SpringBootTest
+@ActiveProfiles("test")
 public class MascotaRepositoryIT {
 
     @Autowired
