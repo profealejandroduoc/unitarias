@@ -495,7 +495,7 @@ Las pruebas unitarias del servicio permiten verificar la lógica de negocio sin 
 
 Para lograrlo, se simula el repositorio usando Mockito.
 
-[Revisa este enlace para más explicación](https://youtu.be/fbwXJO1jMPk)
+[Revisa este enlace para más explicación](https://youtu.be/lk8QA8aIyRA)
 
 Crea el archivo:
 
