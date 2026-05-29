@@ -15,7 +15,7 @@ Al finalizar, deberías ser capaz de:
 * Ejecutar una prueba opcional contra la base de datos real MySQL.
 * Documentar la API con Swagger.
 
-[Antes de seguir, revisa el siguiente video](content/explicaunitarias.mp4)
+[Antes de seguir, revisa el siguiente video](https://youtu.be/fbwXJO1jMPk)
 
 ---
 
@@ -495,7 +495,7 @@ Las pruebas unitarias del servicio permiten verificar la lógica de negocio sin 
 
 Para lograrlo, se simula el repositorio usando Mockito.
 
-[Revisa este enlace para más explicación](content/TDD_y_Spring_Boot_REST_APIs.mp4)
+[Revisa este enlace para más explicación](https://youtu.be/fbwXJO1jMPk)
 
 Crea el archivo:
 
